@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, request
-from .models import Item
+from flask import current_app as app
+from .models import User, Chapter, Subject, Quiz, Question, Score  # Updated imports
 from . import db
 from flask import request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
-from .models import User
 from datetime import datetime, timedelta
 
 api = Blueprint('api', __name__)
@@ -16,11 +16,13 @@ def register():
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already exists'}), 400
         
-    hashed_password = generate_password_hash(data['password'], method='sha256')
+    hashed_password = generate_password_hash(data['password'], method='scrypt')
     new_user = User(
         username=data['username'],
         password=hashed_password,
-        role='user'
+        is_admin=False,
+        dob = datetime.strptime(data['dob'], '%d/%m/%Y').date(),
+        qualification = data['qualification']
     )
     
     db.session.add(new_user)
@@ -36,10 +38,10 @@ def login():
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'error': 'Invalid credentials'}), 401
         
-    access_token = create_access_token(identity=user.id)
+    access_token = create_access_token(identity=str(user.id))
     return jsonify({
         'access_token': access_token,
-        'role': user.role
+        'is_admin': user.is_admin
     }), 200
 
 @api.route('/protected', methods=['GET'])
@@ -51,7 +53,7 @@ def protected():
     return jsonify({
         'message': 'Protected endpoint',
         'user': user.username,
-        'role': user.role
+        'is_admin': user.is_admin
     })
 
 @api.route('/admin-only', methods=['GET'])
@@ -60,32 +62,15 @@ def admin_only():
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
     
-    if user.role != 'admin':
+    if user.is_admin == False:
         return jsonify({'error': 'Admin access required'}), 403
         
     return jsonify({'message': 'Admin endpoint'})
 
-@api.route('/admin/initialize', methods=['POST'])
-def initialize_admin():
-    admin = User.query.filter_by(is_admin=True).first()
-    if admin:
-        return jsonify({'message': 'Admin already exists'}), 400
-        
-    data = request.get_json()
-    hashed_password = generate_password_hash("user1", method='sha256')
-    
-    admin_user = User(
-        username="user1",
-        password=hashed_password,
-        is_admin=True,
-        dob=datetime.strptime(data['dob'], '%Y-%m-%d').date(),
-        qualification="mod"
-    )
-    
-    db.session.add(admin_user)
-    db.session.commit()
-    
-    return jsonify({'message': 'Admin created successfully'}), 201
+
+
+
+
 
 @api.route('/admin/subjects', methods=['POST'])
 @jwt_required()
@@ -420,8 +405,14 @@ def get_quiz_history():
 @jwt_required()
 def get_user_dashboard_summary():
     current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    print("printing user and current_user_id", user, current_user_id)
+
     user_scores = Score.query.filter_by(user_id=current_user_id).all()
-    
+    if not user_scores:
+        print("No scores found for user")  # Debug: Check if user has scores
+        return jsonify({'error': 'No scores found for this user', 'user_id': current_user_id}), 422
+
     total_quizzes_attempted = len(user_scores)
     avg_score = sum(score.total_scored for score in user_scores) / total_quizzes_attempted if total_quizzes_attempted > 0 else 0
     
@@ -437,3 +428,35 @@ def get_user_dashboard_summary():
             'attempt_date': score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M:%S')
         } for score in user_scores[:5]]
     })
+
+@api.route('/quizzes/<int:quiz_id>', methods=['GET'])
+@jwt_required()
+def get_quiz_details(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    questions = Question.query.filter_by(quiz_id=quiz_id).all()
+    
+    return jsonify({
+        'quiz': {
+            'id': quiz.id,
+            'chapter_id': quiz.chapter_id,
+            'date_of_quiz': quiz.date_of_quiz.strftime('%Y-%m-%d %H:%M:%S'),
+            'duration_minutes': quiz.time_duration.total_seconds() / 60,
+            'remarks': quiz.remarks,
+            'questions': [{
+                'id': q.id,
+                'question': q.question_statement,
+                'options': [q.option1, q.option2, q.option3, q.option4],
+                'correct_option': q.correct_option
+            } for q in questions]
+        }
+    })
+@api.route('/subjects/<int:subject_id>/chapters', methods=['GET'])
+def get_subject_chapters(subject_id):
+    subject = Subject.query.get_or_404(subject_id)
+    chapters = Chapter.query.filter_by(subject_id=subject.id).all()
+    
+    return jsonify([{
+        'id': c.id,
+        'name': c.name,
+        'description': c.description
+    } for c in chapters])

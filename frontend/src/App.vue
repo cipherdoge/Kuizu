@@ -1,16 +1,21 @@
 <template>
   <div id="app">
-    <h1>Flask-Vue Integration</h1>
-    <ItemList />
+    <router-view></router-view>  <!-- Use router-view to render matched component -->
   </div>
 </template>
 
 <script>
-import ItemList from './components/ItemList.vue';
+import { defineComponent } from 'vue';
 
-export default {
-  components: {
-    ItemList,
-  },
-};
+export default defineComponent({
+  name: 'App',
+});
 </script>
+
+<style>
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  text-align: center;
+  color: #2c3e50;
+}
+</style>
