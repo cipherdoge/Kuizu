@@ -12,7 +12,7 @@ engine = create_engine(f'sqlite:///{db_file}')
 # Bind SQLAlchemy session to this engine
 Session = sessionmaker(bind=engine)
 session = Session()
-
+"""
 # Update user_id in the existing Score records
 try:
     # Assuming you want to change all scores for user_id=1 to user_id=2
@@ -39,3 +39,16 @@ except Exception as e:
 finally:
     # Close the session
     session.close()
+"""
+list_of_users = session.query(User).all()
+import requests
+
+webhook_url = "https://chat.googleapis.com/v1/spaces/AAAAzVxtSfs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=apnWZYEA4lf78HHwfFBZYTl0aDCdnxJtKHpeHiYs4C4"  # Replace with your webhook URL
+message = {"text": "Hello, " + list_of_users[2].username}
+
+response = requests.post(webhook_url, json=message)
+
+if response.status_code == 200:
+    print("Message sent successfully!")
+else:
+    print(f"Failed to send message: {response.status_code}, {response.text}")

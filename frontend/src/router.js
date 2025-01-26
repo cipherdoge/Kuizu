@@ -3,6 +3,7 @@ import UserLogin from './components/UserLogin.vue';
 import AdminDashboard from './components/AdminDashboard.vue';
 import UserDashboard from './components/UserDashboard.vue';
 import UserRegister from './components/UserRegister.vue';
+import SelectQuiz from './components/SelectQuiz.vue';
 
 const routes = [
   {
@@ -24,6 +25,11 @@ const routes = [
     path: '/register',
     name: 'UserRegister',
     component: UserRegister
+  },
+  {
+    path: '/select-quiz',
+    name: 'SelectQuiz',
+    component: SelectQuiz
   },
   {
     path: '/:pathMatch(.*)*',

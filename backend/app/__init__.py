@@ -1,5 +1,3 @@
-from redis import Redis
-from celery import Celery
 from .models import db, User
 from .routes import api
 from flask_jwt_extended import JWTManager
@@ -7,7 +5,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask
 from datetime import datetime
 
-redis_client = Redis(host='localhost', port=6379, decode_responses=True)
 
 def create_app():
     app = Flask(__name__)
@@ -29,10 +26,7 @@ def create_app():
     return app
 
 
-def create_celery(app):
-    celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-    celery.conf.update(app.config)
-    return celery
+
 
 def initialize_admin(app1):
     with app1.app_context():
@@ -44,3 +38,4 @@ def initialize_admin(app1):
             db.session.commit()
         else:
             print("Admin already exists.")
+

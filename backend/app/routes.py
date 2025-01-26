@@ -1,13 +1,22 @@
-from flask import Blueprint, jsonify, request
-from flask import current_app as app
+from flask import Blueprint, jsonify, request, current_app as app, Flask
 from .models import User, Chapter, Subject, Quiz, Question, Score  # Updated imports
 from . import db
-from flask import request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from time import sleep
+from celery import shared_task
 
 api = Blueprint('api', __name__)
+app = Flask(__name__)
+# Configure the app with the database URI
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize the database with the app
+db.init_app(app)
+
+
 
 @api.route('/register', methods=['POST'])
 def register():
@@ -262,6 +271,7 @@ def search_quizzes():
 
 @api.route('/admin/dashboard/summary', methods=['GET'])
 @jwt_required()
+@shared_task
 def get_admin_dashboard_summary():
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
@@ -403,6 +413,7 @@ def get_quiz_history():
 
 @api.route('/user/dashboard/summary', methods=['GET'])
 @jwt_required()
+@shared_task
 def get_user_dashboard_summary():
     current_user_id = get_jwt_identity()
     user = User.query.get(int(current_user_id))
@@ -460,3 +471,62 @@ def get_subject_chapters(subject_id):
         'name': c.name,
         'description': c.description
     } for c in chapters])
+
+@api.route('/subjects', methods=['GET'])
+@shared_task
+def get_subjects():
+    try:
+        subjects = Subject.query.all()
+        subject_list = [{"id": subject.id, "name": subject.name, "description": subject.description} for subject in subjects]
+        return jsonify(subject_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@api.route('/subjects/<int:subject_id>/chapters', methods=['GET'])
+@shared_task
+def get_chapters(subject_id):
+    try:
+        chapters = Chapter.query.filter_by(subject_id=subject_id).all()
+        chapter_list = [{"id": chapter.id, "name": chapter.name, "description": chapter.description} for chapter in chapters]
+        return jsonify(chapter_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@api.route('/chapters/<int:chapter_id>/quizzes', methods=['GET'])
+@shared_task
+def get_quizzes(chapter_id):
+    try:
+        quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all()
+        quiz_list = [
+            {
+                "id": quiz.id,
+                "date_of_quiz": quiz.date_of_quiz.strftime("%Y-%m-%d %H:%M:%S"),
+                "time_duration": str(quiz.time_duration),
+                "remarks": quiz.remarks
+            }
+            for quiz in quizzes
+        ]
+        return jsonify(quiz_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/quiz-starts', methods=['POST'])
+def start_quiz():
+    try:
+        data = request.get_json()
+        quiz_id = data.get('quiz_id')
+        
+        user_id = get_jwt_identity  
+        
+        # Update your database (adjust based on your database schema)
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO quiz_attempts (user_id, quiz_id, start_time, status)
+            VALUES (%s, %s, %s, %s)
+        """, (user_id, quiz_id, datetime.now(), 'started'))
+        db.commit()
+        
+        return jsonify({'message': 'Quiz start recorded successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

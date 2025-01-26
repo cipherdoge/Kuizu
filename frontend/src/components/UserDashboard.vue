@@ -28,6 +28,13 @@
       <div class="chart-container">
         <LineChart :data="recentAttemptsChartData" />
       </div>
+
+      <!-- Show Quizzes Button -->
+      <div class="button-container">
+        <router-link to="/select-quiz" class="btn btn-primary">
+          Show Quizzes
+        </router-link>
+      </div>
     </div>
     
     <!-- Error or Loading State -->
@@ -38,15 +45,25 @@
   </div>
 </template>
 
+
 <script>
 import axios from 'axios';
 import { ref, onMounted } from 'vue';
 import { defineComponent } from 'vue';
 import { Bar,Line } from 'vue-chartjs';
-import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, BarElement, PointElement } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, Title, Tooltip, Legend, BarElement, PointElement,LineElement } from 'chart.js';
 
 // Register necessary Chart.js components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,PointElement);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  PointElement
+);
 
 
 export default defineComponent({
