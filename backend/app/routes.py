@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from time import sleep
 from celery import shared_task
+from sqlalchemy import text
 
 api = Blueprint('api', __name__)
 app = Flask(__name__)
@@ -24,7 +25,12 @@ def register():
     
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already exists'}), 400
-        
+    
+    if not data["password"]:
+        return jsonify({'error': 'Password is required'}), 400
+    if len(data["password"]) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters long'}), 400
+
     hashed_password = generate_password_hash(data['password'], method='scrypt')
     new_user = User(
         username=data['username'],
@@ -78,6 +84,55 @@ def admin_only():
 
 
 
+@api.route('/admin/getsubjects', methods=['GET'])
+@jwt_required()
+def get_subject():
+    subject_list = Subject.query.all()
+    subjects = [{"name": subject.name} for subject in subject_list]
+    print(subjects)
+    return  jsonify(subjects),200
+
+@api.route('/admin/search', methods=['GET'])
+@jwt_required()
+def search():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    query = request.args.get('query', '')
+    search_type = request.args.get('type', 'subjects')
+
+    # Default response format for all search types
+    response_data = []
+
+    if search_type == 'subjects':
+        results = Subject.query.filter(Subject.name.ilike(f'%{query}%')).all()
+        response_data = [{
+            'id': subject.id,
+            'name': subject.name,
+            'description': subject.description
+        } for subject in results]
+    elif search_type == 'users':
+        results = User.query.filter(User.username.ilike(f'%{query}%')).all()
+        response_data = [{
+            'id': user.id,
+            'username': user.username,
+            'is_admin': user.is_admin
+        } for user in results]
+    elif search_type == 'quizzes':
+        results = Quiz.query.filter(Quiz.id.ilike(f'%{query}%')).all()
+        response_data = [{
+            'id': quiz.id,
+            'remarks': quiz.remarks,
+            'chapter_id': quiz.chapter_id
+        } for quiz in results]
+    else:
+        return jsonify({'error': 'Invalid search type'}), 400
+
+    # Return a consistent response format regardless of search type
+    return jsonify(response_data)
 
 
 
@@ -334,7 +389,7 @@ def manage_question(question_id):
         return jsonify({'error': 'Admin access required'}), 403
         
     question = Question.query.get_or_404(question_id)
-    
+    from sqlalchemy import text
     if request.method == 'PUT':
         data = request.get_json()
         question.question_statement = data.get('question_statement', question.question_statement)
@@ -511,7 +566,7 @@ def get_quizzes(chapter_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/quiz-starts', methods=['POST'])
+@api.route('/quiz-starts', methods=['POST'])
 def start_quiz():
     try:
         data = request.get_json()
@@ -530,3 +585,44 @@ def start_quiz():
         return jsonify({'message': 'Quiz start recorded successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@api.route('/admin/updatequiz/<int:quiz_id>', methods=['PUT'])
+@jwt_required()
+def update_quiz(quiz_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.json
+
+    # Correct SQLAlchemy syntax
+    query = text('UPDATE quiz SET remarks=:remarks, chapter_id=:chapter_id WHERE id=:id')
+
+    db.session.execute(query, {
+        'remarks': data['remarks'],
+        'chapter_id': data['chapter_id'],
+        'id': quiz_id
+    })
+    db.session.commit()
+
+    return jsonify({'message': 'Quiz updated successfully'})
+
+
+@api.route('/admin/deletequiz/<int:quiz_id>', methods=['DELETE'])
+@jwt_required()
+def delete_quiz(quiz_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    query = text('DELETE FROM quizzes WHERE id=:id')
+    
+    db.session.execute(query, {'id': quiz_id})
+    db.session.commit()  
+
+    return jsonify({"message": "Quiz deleted successfully"}), 200
+

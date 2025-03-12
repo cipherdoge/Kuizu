@@ -20,12 +20,18 @@
           <label for="password">Password</label>
           <input
             type="password"
-            id="password" 
+            id="password"
+            class="form-control"
             v-model="password"
             required
+            minlength="6"
             placeholder="Enter password"
           >
+          <small v-if="password && password.length < 6" class="text-danger">
+            Password must be at least 6 characters long.
+          </small>
         </div>
+
         <button type="submit" class="login-btn">Login</button>
         <p v-if="error" class="error">{{ error }}</p>
       </form>

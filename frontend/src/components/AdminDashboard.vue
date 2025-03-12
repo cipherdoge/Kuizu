@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard">
     <h1>Admin Dashboard</h1>
-    
+    <router-link to="/manage-quiz" class="manage-quiz-btn">Manage Quizzes</router-link>
     <!-- Statistics Cards -->
     <div class="statistics-grid">
       <div class="stat-card">
@@ -130,5 +130,25 @@ th, td {
 th {
   background-color: #f8f9fa;
   font-weight: 600;
+}
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.manage-quiz-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.manage-quiz-btn:hover {
+  background-color: #45a049;
 }
 </style>
